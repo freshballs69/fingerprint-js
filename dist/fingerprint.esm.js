@@ -1,0 +1,530 @@
+async function sha256(message) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function murmur3(str, seed = 0) {
+    let h1 = seed >>> 0;
+    const c1 = 0xcc9e2d51;
+    const c2 = 0x1b873593;
+    for (let i = 0; i < str.length; i++) {
+        let k1 = str.charCodeAt(i);
+        k1 = Math.imul(k1, c1);
+        k1 = (k1 << 15) | (k1 >>> 17);
+        k1 = Math.imul(k1, c2);
+        h1 ^= k1;
+        h1 = (h1 << 13) | (h1 >>> 19);
+        h1 = Math.imul(h1, 5) + 0xe6546b64;
+    }
+    h1 ^= str.length;
+    h1 ^= h1 >>> 16;
+    h1 = Math.imul(h1, 0x85ebca6b);
+    h1 ^= h1 >>> 13;
+    h1 = Math.imul(h1, 0xc2b2ae35);
+    h1 ^= h1 >>> 16;
+    return h1 >>> 0;
+}
+
+function getUserAgent() {
+    return navigator.userAgent;
+}
+function getLanguage() {
+    return navigator.language;
+}
+function getLanguages() {
+    return Array.from(navigator.languages || [navigator.language]);
+}
+function getPlatform() {
+    return navigator.platform;
+}
+function getVendor() {
+    return navigator.vendor || '';
+}
+function getVendorFlavors() {
+    const dominated = [];
+    const domPropNames = Object.getOwnPropertyNames(window);
+    const vendorChecks = {
+        chrome: ['chrome'],
+        firefox: ['InstallTrigger'],
+        safari: ['safari'],
+        edge: ['msWriteProfilerMark'],
+        opera: ['opr', 'opera'],
+    };
+    for (const [browser, props] of Object.entries(vendorChecks)) {
+        for (const prop of props) {
+            if (domPropNames.includes(prop) || prop in window) {
+                dominated.push(browser);
+                break;
+            }
+        }
+    }
+    return dominated;
+}
+function getDoNotTrack() {
+    return navigator.doNotTrack || null;
+}
+function getCookiesEnabled() {
+    try {
+        document.cookie = 'fp_test=1';
+        const result = document.cookie.indexOf('fp_test=') !== -1;
+        document.cookie = 'fp_test=1; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+        return result;
+    }
+    catch (_a) {
+        return false;
+    }
+}
+
+function getColorDepth() {
+    return screen.colorDepth;
+}
+function getScreenResolution() {
+    return [screen.width, screen.height];
+}
+function getAvailableScreenResolution() {
+    return [screen.availWidth, screen.availHeight];
+}
+
+function getTimezone() {
+    try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    }
+    catch (_a) {
+        return '';
+    }
+}
+function getTimezoneOffset() {
+    return new Date().getTimezoneOffset();
+}
+
+function hasSessionStorage() {
+    try {
+        return !!window.sessionStorage;
+    }
+    catch (_a) {
+        return false;
+    }
+}
+function hasLocalStorage() {
+    try {
+        return !!window.localStorage;
+    }
+    catch (_a) {
+        return false;
+    }
+}
+function hasIndexedDb() {
+    try {
+        return !!window.indexedDB;
+    }
+    catch (_a) {
+        return false;
+    }
+}
+
+function getHardwareConcurrency() {
+    return navigator.hardwareConcurrency || 0;
+}
+function getDeviceMemory() {
+    return navigator.deviceMemory || null;
+}
+function getMaxTouchPoints() {
+    return navigator.maxTouchPoints || 0;
+}
+
+function getCanvasFingerprint() {
+    try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx)
+            return '';
+        canvas.width = 200;
+        canvas.height = 50;
+        // Draw text with specific styling
+        ctx.textBaseline = 'alphabetic';
+        ctx.font = '14px Arial';
+        ctx.fillStyle = '#f60';
+        ctx.fillRect(125, 1, 62, 20);
+        ctx.fillStyle = '#069';
+        ctx.fillText('Fingerprint', 2, 15);
+        ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+        ctx.fillText('Canvas Test', 4, 45);
+        // Draw shapes
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.fillStyle = 'rgb(255,0,255)';
+        ctx.beginPath();
+        ctx.arc(50, 50, 50, 0, Math.PI * 2, true);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgb(0,255,255)';
+        ctx.beginPath();
+        ctx.arc(100, 50, 50, 0, Math.PI * 2, true);
+        ctx.closePath();
+        ctx.fill();
+        const dataUrl = canvas.toDataURL();
+        return murmur3(dataUrl).toString(16);
+    }
+    catch (_a) {
+        return '';
+    }
+}
+
+function getWebGLInfo() {
+    const result = {
+        vendor: '',
+        renderer: '',
+        version: '',
+    };
+    try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (!gl || !(gl instanceof WebGLRenderingContext)) {
+            return result;
+        }
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        if (debugInfo) {
+            result.vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) || '';
+            result.renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || '';
+        }
+        result.version = gl.getParameter(gl.VERSION) || '';
+    }
+    catch (_a) {
+        // WebGL not available
+    }
+    return result;
+}
+
+const FONT_LIST = [
+    'Arial',
+    'Arial Black',
+    'Arial Narrow',
+    'Bookman Old Style',
+    'Century',
+    'Century Gothic',
+    'Comic Sans MS',
+    'Courier',
+    'Courier New',
+    'Georgia',
+    'Helvetica',
+    'Impact',
+    'Lucida Console',
+    'Lucida Sans Unicode',
+    'Microsoft Sans Serif',
+    'Palatino Linotype',
+    'Tahoma',
+    'Times',
+    'Times New Roman',
+    'Trebuchet MS',
+    'Verdana',
+    'Wingdings',
+];
+const BASE_FONTS = ['monospace', 'sans-serif', 'serif'];
+const TEST_STRING = 'mmmmmmmmmmlli';
+const TEST_SIZE = '72px';
+function getAvailableFonts() {
+    const available = [];
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx)
+        return available;
+    const getWidth = (fontFamily) => {
+        ctx.font = `${TEST_SIZE} ${fontFamily}`;
+        return ctx.measureText(TEST_STRING).width;
+    };
+    const baseWidths = {};
+    for (const baseFont of BASE_FONTS) {
+        baseWidths[baseFont] = getWidth(baseFont);
+    }
+    for (const font of FONT_LIST) {
+        let detected = false;
+        for (const baseFont of BASE_FONTS) {
+            const testWidth = getWidth(`"${font}", ${baseFont}`);
+            if (testWidth !== baseWidths[baseFont]) {
+                detected = true;
+                break;
+            }
+        }
+        if (detected) {
+            available.push(font);
+        }
+    }
+    return available;
+}
+
+async function getAudioFingerprint() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext)
+            return 0;
+        const context = new AudioContext();
+        const oscillator = context.createOscillator();
+        const analyser = context.createAnalyser();
+        const gain = context.createGain();
+        const scriptProcessor = context.createScriptProcessor(4096, 1, 1);
+        const destination = context.destination;
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(10000, context.currentTime);
+        gain.gain.setValueAtTime(0, context.currentTime);
+        oscillator.connect(analyser);
+        analyser.connect(scriptProcessor);
+        scriptProcessor.connect(gain);
+        gain.connect(destination);
+        oscillator.start(0);
+        const fingerprint = await new Promise((resolve) => {
+            const frequencyData = new Float32Array(analyser.frequencyBinCount);
+            analyser.getFloatFrequencyData(frequencyData);
+            const dataString = frequencyData.slice(0, 50).join(',');
+            resolve(murmur3(dataString));
+        });
+        oscillator.disconnect();
+        analyser.disconnect();
+        scriptProcessor.disconnect();
+        gain.disconnect();
+        context.close();
+        return fingerprint;
+    }
+    catch (_a) {
+        return 0;
+    }
+}
+
+function getPlugins() {
+    const plugins = [];
+    if (!navigator.plugins)
+        return plugins;
+    for (let i = 0; i < navigator.plugins.length; i++) {
+        const plugin = navigator.plugins[i];
+        if (plugin) {
+            plugins.push(plugin.name);
+        }
+    }
+    return plugins.sort();
+}
+
+async function getWebRTCInfo() {
+    const result = {
+        available: false,
+        localIPs: [],
+    };
+    if (typeof RTCPeerConnection === 'undefined') {
+        return result;
+    }
+    result.available = true;
+    try {
+        const pc = new RTCPeerConnection({
+            iceServers: [],
+        });
+        const ips = new Set();
+        return new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+                pc.close();
+                result.localIPs = Array.from(ips);
+                resolve(result);
+            }, 1000);
+            pc.onicecandidate = (event) => {
+                if (!event.candidate) {
+                    clearTimeout(timeout);
+                    pc.close();
+                    result.localIPs = Array.from(ips);
+                    resolve(result);
+                    return;
+                }
+                const candidate = event.candidate.candidate;
+                const ipMatch = candidate.match(/(\d{1,3}\.){3}\d{1,3}/);
+                if (ipMatch) {
+                    ips.add(ipMatch[0]);
+                }
+                const ipv6Match = candidate.match(/([a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/i);
+                if (ipv6Match) {
+                    ips.add(ipv6Match[0]);
+                }
+            };
+            pc.createDataChannel('');
+            pc.createOffer()
+                .then((offer) => pc.setLocalDescription(offer))
+                .catch(() => {
+                clearTimeout(timeout);
+                pc.close();
+                resolve(result);
+            });
+        });
+    }
+    catch (_a) {
+        return result;
+    }
+}
+
+function getConfig() {
+    var _a, _b, _c;
+    let endpointUrl = null;
+    let trackUrl = null;
+    // Check for environment variable (build-time injection via bundlers)
+    if (typeof process !== 'undefined') {
+        if ((_a = process.env) === null || _a === void 0 ? void 0 : _a.FINGERPRINT_API) {
+            endpointUrl = process.env.FINGERPRINT_API;
+        }
+        else if ((_b = process.env) === null || _b === void 0 ? void 0 : _b.FINGERPRINT_ENDPOINT_URL) {
+            endpointUrl = process.env.FINGERPRINT_ENDPOINT_URL;
+        }
+        if ((_c = process.env) === null || _c === void 0 ? void 0 : _c.TRACK_API) {
+            trackUrl = process.env.TRACK_API;
+        }
+    }
+    // Check for window global (runtime configuration)
+    if (typeof window !== 'undefined') {
+        const win = window;
+        if (win.FINGERPRINT_API) {
+            endpointUrl = win.FINGERPRINT_API;
+        }
+        else if (win.FINGERPRINT_ENDPOINT_URL) {
+            endpointUrl = win.FINGERPRINT_ENDPOINT_URL;
+        }
+        if (win.TRACK_API) {
+            trackUrl = win.TRACK_API;
+        }
+    }
+    if (!endpointUrl) {
+        endpointUrl = '/api/fingerprint';
+    }
+    return { endpointUrl, trackUrl };
+}
+
+async function sendFingerprint(result, options) {
+    const { url, method = 'POST', headers = {} } = options;
+    const response = await fetch(url, {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+            ...headers,
+        },
+        body: JSON.stringify(result),
+    });
+    return response;
+}
+
+async function collectComponents(options = {}) {
+    const exclude = new Set(options.excludeComponents || []);
+    const webglInfo = !exclude.has('webglVendor') || !exclude.has('webglRenderer') || !exclude.has('webglVersion')
+        ? getWebGLInfo()
+        : { vendor: '', renderer: '', version: '' };
+    const audioFingerprint = !exclude.has('audio')
+        ? await getAudioFingerprint()
+        : 0;
+    const webrtcInfo = !exclude.has('webrtcAvailable') || !exclude.has('webrtcLocalIPs')
+        ? await getWebRTCInfo()
+        : { available: false, localIPs: [] };
+    return {
+        userAgent: !exclude.has('userAgent') ? getUserAgent() : '',
+        language: !exclude.has('language') ? getLanguage() : '',
+        languages: !exclude.has('languages') ? getLanguages() : [],
+        colorDepth: !exclude.has('colorDepth') ? getColorDepth() : 0,
+        screenResolution: !exclude.has('screenResolution') ? getScreenResolution() : [0, 0],
+        availableScreenResolution: !exclude.has('availableScreenResolution') ? getAvailableScreenResolution() : [0, 0],
+        timezone: !exclude.has('timezone') ? getTimezone() : '',
+        timezoneOffset: !exclude.has('timezoneOffset') ? getTimezoneOffset() : 0,
+        sessionStorage: !exclude.has('sessionStorage') ? hasSessionStorage() : false,
+        localStorage: !exclude.has('localStorage') ? hasLocalStorage() : false,
+        indexedDb: !exclude.has('indexedDb') ? hasIndexedDb() : false,
+        cookiesEnabled: !exclude.has('cookiesEnabled') ? getCookiesEnabled() : false,
+        platform: !exclude.has('platform') ? getPlatform() : '',
+        hardwareConcurrency: !exclude.has('hardwareConcurrency') ? getHardwareConcurrency() : 0,
+        deviceMemory: !exclude.has('deviceMemory') ? getDeviceMemory() : null,
+        maxTouchPoints: !exclude.has('maxTouchPoints') ? getMaxTouchPoints() : 0,
+        vendor: !exclude.has('vendor') ? getVendor() : '',
+        vendorFlavors: !exclude.has('vendorFlavors') ? getVendorFlavors() : [],
+        canvas: !exclude.has('canvas') ? getCanvasFingerprint() : '',
+        webglVendor: !exclude.has('webglVendor') ? webglInfo.vendor : '',
+        webglRenderer: !exclude.has('webglRenderer') ? webglInfo.renderer : '',
+        webglVersion: !exclude.has('webglVersion') ? webglInfo.version : '',
+        fonts: !exclude.has('fonts') ? getAvailableFonts() : [],
+        audio: !exclude.has('audio') ? audioFingerprint : 0,
+        plugins: !exclude.has('plugins') ? getPlugins() : [],
+        doNotTrack: !exclude.has('doNotTrack') ? getDoNotTrack() : null,
+        webrtcAvailable: !exclude.has('webrtcAvailable') ? webrtcInfo.available : false,
+        webrtcLocalIPs: !exclude.has('webrtcLocalIPs') ? webrtcInfo.localIPs : [],
+    };
+}
+async function getFingerprint(options = {}) {
+    const components = await collectComponents(options);
+    const componentsString = JSON.stringify(components);
+    const hash = await sha256(componentsString);
+    return {
+        hash,
+        components,
+        timestamp: Date.now(),
+    };
+}
+const INIT_ENDPOINT = '/api/init';
+function buildTrackUrl(trackUrl, reqId) {
+    const url = new URL(trackUrl, window.location.origin);
+    if (!url.searchParams.has('req_id')) {
+        url.searchParams.set('req_id', reqId);
+    }
+    return url.toString();
+}
+function fireAndForget(trackUrl, reqId) {
+    if (!trackUrl) {
+        return;
+    }
+    const url = buildTrackUrl(trackUrl, reqId);
+    fetch(url).catch(() => { });
+}
+async function initRequest() {
+    const response = await fetch(INIT_ENDPOINT);
+    const data = await response.json();
+    return {
+        reqId: typeof data.req_id === 'string' ? data.req_id : null,
+        trackUrl: typeof data.track_url === 'string' ? data.track_url : null
+    };
+}
+async function collect(options = {}) {
+    const initData = await initRequest();
+    if (!initData.reqId) {
+        return null;
+    }
+    const result = await new Promise((resolve, reject) => {
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            getFingerprint(options).then(resolve).catch(reject);
+        }
+        else {
+            document.addEventListener('DOMContentLoaded', () => {
+                getFingerprint(options).then(resolve).catch(reject);
+            });
+        }
+    });
+    const config = getConfig();
+    let reqId = initData.reqId;
+    const trackUrl = initData.trackUrl || config.trackUrl;
+    if (config.endpointUrl) {
+        try {
+            result.req_id = reqId;
+            const response = await sendFingerprint(result, { url: config.endpointUrl });
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const data = await response.json();
+                if (data && typeof data.req_id === 'string') {
+                    reqId = data.req_id;
+                }
+            }
+        }
+        catch (_a) {
+            // Silently fail if endpoint is unavailable
+        }
+    }
+    fireAndForget(trackUrl, reqId);
+    return reqId;
+}
+const api = {
+    getFingerprint,
+    collect,
+    sendFingerprint,
+};
+const Fingerprint = Object.assign(() => api, api);
+// Auto-initialize when loaded via script tag
+if (typeof window !== 'undefined') {
+    window.Fingerprint = Fingerprint;
+}
+
+export { collect, Fingerprint as default, getFingerprint, sendFingerprint };
+//# sourceMappingURL=fingerprint.esm.js.map
