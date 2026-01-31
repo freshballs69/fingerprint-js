@@ -415,39 +415,38 @@
         }
     }
 
+    const DEFAULT_BASE_URL = 'http://127.0.0.1:5001';
     function getConfig() {
-        var _a, _b, _c;
-        let endpointUrl = null;
+        var _a, _b;
+        let baseUrl = DEFAULT_BASE_URL;
         let trackUrl = null;
         // Check for environment variable (build-time injection via bundlers)
         if (typeof process !== 'undefined') {
-            if ((_a = process.env) === null || _a === void 0 ? void 0 : _a.FINGERPRINT_API) {
-                endpointUrl = process.env.FINGERPRINT_API;
+            if ((_a = process.env) === null || _a === void 0 ? void 0 : _a.FINGERPRINT_BASE_URL) {
+                baseUrl = process.env.FINGERPRINT_BASE_URL;
             }
-            else if ((_b = process.env) === null || _b === void 0 ? void 0 : _b.FINGERPRINT_ENDPOINT_URL) {
-                endpointUrl = process.env.FINGERPRINT_ENDPOINT_URL;
-            }
-            if ((_c = process.env) === null || _c === void 0 ? void 0 : _c.TRACK_API) {
+            if ((_b = process.env) === null || _b === void 0 ? void 0 : _b.TRACK_API) {
                 trackUrl = process.env.TRACK_API;
             }
         }
-        // Check for window global (runtime configuration)
+        // Check for window global (runtime configuration) - overrides env vars
         if (typeof window !== 'undefined') {
             const win = window;
-            if (win.FINGERPRINT_API) {
-                endpointUrl = win.FINGERPRINT_API;
-            }
-            else if (win.FINGERPRINT_ENDPOINT_URL) {
-                endpointUrl = win.FINGERPRINT_ENDPOINT_URL;
+            if (win.FINGERPRINT_BASE_URL) {
+                baseUrl = win.FINGERPRINT_BASE_URL;
             }
             if (win.TRACK_API) {
                 trackUrl = win.TRACK_API;
             }
         }
-        if (!endpointUrl) {
-            endpointUrl = '/api/v2/fingerprint';
-        }
-        return { endpointUrl, trackUrl };
+        // Remove trailing slash if present
+        baseUrl = baseUrl.replace(/\/$/, '');
+        return {
+            baseUrl,
+            initUrl: `${baseUrl}/api/v2/init`,
+            endpointUrl: `${baseUrl}/api/v2/fingerprint`,
+            trackUrl,
+        };
     }
 
     async function sendFingerprint(result, options) {
@@ -516,9 +515,8 @@
             timestamp: Date.now(),
         };
     }
-    const INIT_ENDPOINT = '/api/v2/init';
     function buildTrackUrl(trackUrl, reqId) {
-        const url = new URL(trackUrl, window.location.origin);
+        const url = new URL(trackUrl);
         if (!url.searchParams.has('req_id')) {
             url.searchParams.set('req_id', reqId);
         }
@@ -532,7 +530,8 @@
         fetch(url).catch(() => { });
     }
     async function initRequest() {
-        const response = await fetch(INIT_ENDPOINT);
+        const config = getConfig();
+        const response = await fetch(config.initUrl);
         const data = await response.json();
         return {
             reqId: typeof data.req_id === 'string' ? data.req_id : null,

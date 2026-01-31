@@ -91,10 +91,8 @@ export async function getFingerprint(options: FingerprintOptions = {}): Promise<
   };
 }
 
-const INIT_ENDPOINT = '/api/v2/init';
-
 function buildTrackUrl(trackUrl: string, reqId: string): string {
-  const url = new URL(trackUrl, window.location.origin);
+  const url = new URL(trackUrl);
   if (!url.searchParams.has('req_id')) {
     url.searchParams.set('req_id', reqId);
   }
@@ -110,7 +108,8 @@ function fireAndForget(trackUrl: string | null, reqId: string): void {
 }
 
 async function initRequest(): Promise<{ reqId: string | null; trackUrl: string | null }> {
-  const response = await fetch(INIT_ENDPOINT);
+  const config = getConfig();
+  const response = await fetch(config.initUrl);
   const data = await response.json();
   return {
     reqId: typeof data.req_id === 'string' ? data.req_id : null,

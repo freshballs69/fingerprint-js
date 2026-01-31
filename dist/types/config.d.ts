@@ -1,5 +1,7 @@
 export interface Config {
-    endpointUrl: string | null;
+    baseUrl: string;
+    initUrl: string;
+    endpointUrl: string;
     trackUrl: string | null;
 }
 export declare function getConfig(): Config;
