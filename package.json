@@ -1,12 +1,19 @@
 {
   "name": "fingerprint-js",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "description": "Browser fingerprinting library",
   "main": "dist/fingerprint.cjs.js",
   "module": "dist/fingerprint.esm.js",
-  "browser": "dist/fingerprint.umd.min.js",
+  "browser": "dist/fingerprint.esm.js",
   "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/fingerprint.esm.js",
+      "require": "./dist/fingerprint.cjs.js",
+      "types": "./dist/types/index.d.ts"
+    }
+  },
   "files": [
     "dist",
     "src"
