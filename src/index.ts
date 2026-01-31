@@ -9,6 +9,7 @@ import {
   getVendorFlavors,
   getDoNotTrack,
   getCookiesEnabled,
+  getWebdriverPresent,
 } from './collectors/browser';
 import {
   getColorDepth,
@@ -74,6 +75,7 @@ async function collectComponents(options: FingerprintOptions = {}): Promise<Fing
     doNotTrack: !exclude.has('doNotTrack') ? getDoNotTrack() : null,
     webrtcAvailable: !exclude.has('webrtcAvailable') ? webrtcInfo.available : false,
     webrtcLocalIPs: !exclude.has('webrtcLocalIPs') ? webrtcInfo.localIPs : [],
+    webdriver: !exclude.has('webdriver') ? getWebdriverPresent() : { detected: false, signals: [] },
   };
 }
 
@@ -89,7 +91,7 @@ export async function getFingerprint(options: FingerprintOptions = {}): Promise<
   };
 }
 
-const INIT_ENDPOINT = '/api/init';
+const INIT_ENDPOINT = '/api/v2/init';
 
 function buildTrackUrl(trackUrl: string, reqId: string): string {
   const url = new URL(trackUrl, window.location.origin);

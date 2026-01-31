@@ -27,6 +27,10 @@ export interface FingerprintComponents {
     doNotTrack: string | null;
     webrtcAvailable: boolean;
     webrtcLocalIPs: string[];
+    webdriver: {
+        detected: boolean;
+        signals: string[];
+    };
 }
 export interface FingerprintResult {
     hash: string;

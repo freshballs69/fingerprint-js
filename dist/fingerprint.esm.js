@@ -75,6 +75,60 @@ function getCookiesEnabled() {
         return false;
     }
 }
+function getWebdriverPresent() {
+    const signals = [];
+    // Standard WebDriver flag (Selenium, Puppeteer, Playwright)
+    if (navigator.webdriver === true) {
+        signals.push('navigator.webdriver');
+    }
+    // ChromeDriver detection
+    const docKeys = Object.keys(document);
+    for (const key of docKeys) {
+        if (key.startsWith('$cdc_') || key.startsWith('$wdc_')) {
+            signals.push('chromedriver');
+            break;
+        }
+    }
+    // Window-based automation detection
+    const win = window;
+    if (win.callPhantom || win._phantom || win.phantom) {
+        signals.push('phantomjs');
+    }
+    if (win.__nightmare) {
+        signals.push('nightmare');
+    }
+    if (win.domAutomation || win.domAutomationController) {
+        signals.push('domAutomation');
+    }
+    // Selenium-specific
+    if (win._selenium || win.__webdriver_script_fn || win.__driver_evaluate ||
+        win.__webdriver_evaluate || win.__selenium_evaluate || win.__fxdriver_evaluate ||
+        win.__driver_unwrapped || win.__webdriver_unwrapped || win.__selenium_unwrapped ||
+        win.__fxdriver_unwrapped || win._Selenium_IDE_Recorder || win._WEBDRIVER_ELEM_CACHE) {
+        signals.push('selenium');
+    }
+    // Webdriver async executor (Selenium)
+    if (win.__$webdriverAsyncExecutor) {
+        signals.push('webdriverAsyncExecutor');
+    }
+    // Generic webdriver property on window
+    if (win.webdriver || win.__webdriverFunc) {
+        signals.push('webdriverWindow');
+    }
+    // Cypress
+    if (win.Cypress) {
+        signals.push('cypress');
+    }
+    // Check for headless indicators in user agent
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('headless')) {
+        signals.push('headlessUA');
+    }
+    return {
+        detected: signals.length > 0,
+        signals,
+    };
+}
 
 function getColorDepth() {
     return screen.colorDepth;
@@ -385,7 +439,7 @@ function getConfig() {
         }
     }
     if (!endpointUrl) {
-        endpointUrl = '/api/fingerprint';
+        endpointUrl = '/api/v2/fingerprint';
     }
     return { endpointUrl, trackUrl };
 }
@@ -443,6 +497,7 @@ async function collectComponents(options = {}) {
         doNotTrack: !exclude.has('doNotTrack') ? getDoNotTrack() : null,
         webrtcAvailable: !exclude.has('webrtcAvailable') ? webrtcInfo.available : false,
         webrtcLocalIPs: !exclude.has('webrtcLocalIPs') ? webrtcInfo.localIPs : [],
+        webdriver: !exclude.has('webdriver') ? getWebdriverPresent() : { detected: false, signals: [] },
     };
 }
 async function getFingerprint(options = {}) {
@@ -455,7 +510,7 @@ async function getFingerprint(options = {}) {
         timestamp: Date.now(),
     };
 }
-const INIT_ENDPOINT = '/api/init';
+const INIT_ENDPOINT = '/api/v2/init';
 function buildTrackUrl(trackUrl, reqId) {
     const url = new URL(trackUrl, window.location.origin);
     if (!url.searchParams.has('req_id')) {

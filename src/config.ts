@@ -40,7 +40,7 @@ export function getConfig(): Config {
   }
 
   if (!endpointUrl) {
-    endpointUrl = '/api/fingerprint';
+    endpointUrl = '/api/v2/fingerprint';
   }
 
   return { endpointUrl, trackUrl };
