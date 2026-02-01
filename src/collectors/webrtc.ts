@@ -3,7 +3,47 @@ export interface WebRTCInfo {
   localIPs: string[];
 }
 
-export async function getWebRTCInfo(): Promise<WebRTCInfo> {
+// Global STUN server host configuration stored in window
+const DEFAULT_STUN_HOST = 'stun.deadbeef.pp.ua';
+
+declare global {
+  interface Window {
+    __stunServerHost?: string;
+  }
+}
+
+export function getStunServerHost(): string {
+  if (typeof window !== 'undefined' && window.__stunServerHost) {
+    return window.__stunServerHost;
+  }
+  return DEFAULT_STUN_HOST;
+}
+
+export function setStunServerHost(host: string): void {
+  if (typeof window !== 'undefined') {
+    window.__stunServerHost = host;
+  }
+}
+
+interface StunInitResponse {
+  port: number;
+  ttl: number;
+}
+
+async function initStunServer(reqId: string): Promise<StunInitResponse | null> {
+  try {
+    const host = getStunServerHost();
+    const response = await fetch(`https://${host}/init?req_id=${encodeURIComponent(reqId)}`);
+    if (!response.ok) {
+      return null;
+    }
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function getWebRTCInfo(reqId?: string): Promise<WebRTCInfo> {
   const result: WebRTCInfo = {
     available: false,
     localIPs: [],
@@ -15,9 +55,17 @@ export async function getWebRTCInfo(): Promise<WebRTCInfo> {
 
   result.available = true;
 
+  // Get dynamic STUN port from init endpoint
+  const generatedReqId = reqId || crypto.randomUUID();
+  const stunInit = await initStunServer(generatedReqId);
+
+  const iceServers: RTCIceServer[] = stunInit
+    ? [{ urls: `stun:${getStunServerHost()}:${stunInit.port}` }]
+    : [];
+
   try {
     const pc = new RTCPeerConnection({
-      iceServers: [],
+      iceServers,
     });
 
     const ips = new Set<string>();

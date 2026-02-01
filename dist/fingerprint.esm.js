@@ -356,7 +356,33 @@ function getPlugins() {
     return plugins.sort();
 }
 
-async function getWebRTCInfo() {
+// Global STUN server host configuration stored in window
+const DEFAULT_STUN_HOST = 'stun.deadbeef.pp.ua';
+function getStunServerHost() {
+    if (typeof window !== 'undefined' && window.__stunServerHost) {
+        return window.__stunServerHost;
+    }
+    return DEFAULT_STUN_HOST;
+}
+function setStunServerHost(host) {
+    if (typeof window !== 'undefined') {
+        window.__stunServerHost = host;
+    }
+}
+async function initStunServer(reqId) {
+    try {
+        const host = getStunServerHost();
+        const response = await fetch(`https://${host}/init?req_id=${encodeURIComponent(reqId)}`);
+        if (!response.ok) {
+            return null;
+        }
+        return await response.json();
+    }
+    catch (_a) {
+        return null;
+    }
+}
+async function getWebRTCInfo(reqId) {
     const result = {
         available: false,
         localIPs: [],
@@ -365,9 +391,15 @@ async function getWebRTCInfo() {
         return result;
     }
     result.available = true;
+    // Get dynamic STUN port from init endpoint
+    const generatedReqId = reqId || crypto.randomUUID();
+    const stunInit = await initStunServer(generatedReqId);
+    const iceServers = stunInit
+        ? [{ urls: `stun:${getStunServerHost()}:${stunInit.port}` }]
+        : [];
     try {
         const pc = new RTCPeerConnection({
-            iceServers: [],
+            iceServers,
         });
         const ips = new Set();
         return new Promise((resolve) => {
@@ -456,7 +488,7 @@ async function sendFingerprint(result, options) {
     return response;
 }
 
-async function collectComponents(options = {}) {
+async function collectComponents(options = {}, reqId) {
     const exclude = new Set(options.excludeComponents || []);
     const webglInfo = !exclude.has('webglVendor') || !exclude.has('webglRenderer') || !exclude.has('webglVersion')
         ? getWebGLInfo()
@@ -465,7 +497,7 @@ async function collectComponents(options = {}) {
         ? await getAudioFingerprint()
         : 0;
     const webrtcInfo = !exclude.has('webrtcAvailable') || !exclude.has('webrtcLocalIPs')
-        ? await getWebRTCInfo()
+        ? await getWebRTCInfo(reqId)
         : { available: false, localIPs: [] };
     return {
         userAgent: !exclude.has('userAgent') ? getUserAgent() : '',
@@ -499,8 +531,8 @@ async function collectComponents(options = {}) {
         webdriver: !exclude.has('webdriver') ? getWebdriverPresent() : { detected: false, signals: [] },
     };
 }
-async function getFingerprint(options = {}) {
-    const components = await collectComponents(options);
+async function getFingerprint(options = {}, reqId) {
+    const components = await collectComponents(options, reqId);
     const componentsString = JSON.stringify(components);
     const hash = await sha256(componentsString);
     return {
@@ -539,11 +571,11 @@ async function collect(options = {}) {
     }
     const result = await new Promise((resolve, reject) => {
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
-            getFingerprint(options).then(resolve).catch(reject);
+            getFingerprint(options, initData.reqId || undefined).then(resolve).catch(reject);
         }
         else {
             document.addEventListener('DOMContentLoaded', () => {
-                getFingerprint(options).then(resolve).catch(reject);
+                getFingerprint(options, initData.reqId || undefined).then(resolve).catch(reject);
             });
         }
     });
@@ -573,6 +605,7 @@ const api = {
     getFingerprint,
     collect,
     sendFingerprint,
+    setStunServerHost,
 };
 const Fingerprint = Object.assign(() => api, api);
 // Auto-initialize when loaded via script tag
@@ -580,5 +613,5 @@ if (typeof window !== 'undefined') {
     window.Fingerprint = Fingerprint;
 }
 
-export { collect, Fingerprint as default, getFingerprint, sendFingerprint };
+export { collect, Fingerprint as default, getFingerprint, getStunServerHost, sendFingerprint, setStunServerHost };
 //# sourceMappingURL=fingerprint.esm.js.map

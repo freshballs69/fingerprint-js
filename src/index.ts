@@ -24,14 +24,14 @@ import { getWebGLInfo } from './collectors/webgl';
 import { getAvailableFonts } from './collectors/fonts';
 import { getAudioFingerprint } from './collectors/audio';
 import { getPlugins } from './collectors/plugins';
-import { getWebRTCInfo } from './collectors/webrtc';
+import { getWebRTCInfo, setStunServerHost, getStunServerHost } from './collectors/webrtc';
 import { getConfig } from './config';
 import { sendFingerprint, SendOptions } from './sender';
 
 export { FingerprintComponents, FingerprintResult, FingerprintOptions, CollectOptions } from './types';
 export { SendOptions } from './sender';
 
-async function collectComponents(options: FingerprintOptions = {}): Promise<FingerprintComponents> {
+async function collectComponents(options: FingerprintOptions = {}, reqId?: string): Promise<FingerprintComponents> {
   const exclude = new Set(options.excludeComponents || []);
 
   const webglInfo = !exclude.has('webglVendor') || !exclude.has('webglRenderer') || !exclude.has('webglVersion')
@@ -43,7 +43,7 @@ async function collectComponents(options: FingerprintOptions = {}): Promise<Fing
     : 0;
 
   const webrtcInfo = !exclude.has('webrtcAvailable') || !exclude.has('webrtcLocalIPs')
-    ? await getWebRTCInfo()
+    ? await getWebRTCInfo(reqId)
     : { available: false, localIPs: [] };
 
   return {
@@ -79,8 +79,8 @@ async function collectComponents(options: FingerprintOptions = {}): Promise<Fing
   };
 }
 
-export async function getFingerprint(options: FingerprintOptions = {}): Promise<FingerprintResult> {
-  const components = await collectComponents(options);
+export async function getFingerprint(options: FingerprintOptions = {}, reqId?: string): Promise<FingerprintResult> {
+  const components = await collectComponents(options, reqId);
   const componentsString = JSON.stringify(components);
   const hash = await sha256(componentsString);
 
@@ -125,10 +125,10 @@ export async function collect(options: CollectOptions = {}): Promise<string | nu
 
   const result = await new Promise<FingerprintResult>((resolve, reject) => {
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      getFingerprint(options).then(resolve).catch(reject);
+      getFingerprint(options, initData.reqId || undefined).then(resolve).catch(reject);
     } else {
       document.addEventListener('DOMContentLoaded', () => {
-        getFingerprint(options).then(resolve).catch(reject);
+        getFingerprint(options, initData.reqId || undefined).then(resolve).catch(reject);
       });
     }
   });
@@ -159,11 +159,13 @@ export async function collect(options: CollectOptions = {}): Promise<string | nu
 }
 
 export { sendFingerprint };
+export { setStunServerHost, getStunServerHost };
 
 type FingerprintAPI = {
   getFingerprint: typeof getFingerprint;
   collect: typeof collect;
   sendFingerprint: typeof sendFingerprint;
+  setStunServerHost: typeof setStunServerHost;
 };
 
 type FingerprintFactory = {
@@ -171,12 +173,14 @@ type FingerprintFactory = {
   getFingerprint: typeof getFingerprint;
   collect: typeof collect;
   sendFingerprint: typeof sendFingerprint;
+  setStunServerHost: typeof setStunServerHost;
 };
 
 const api: FingerprintAPI = {
   getFingerprint,
   collect,
   sendFingerprint,
+  setStunServerHost,
 };
 
 const Fingerprint: FingerprintFactory = Object.assign(() => api, api);
