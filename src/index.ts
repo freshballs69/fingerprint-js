@@ -25,7 +25,7 @@ import { getAvailableFonts } from './collectors/fonts';
 import { getAudioFingerprint } from './collectors/audio';
 import { getPlugins } from './collectors/plugins';
 import { getWebRTCInfo, setStunServerHost, getStunServerHost } from './collectors/webrtc';
-import { getConfig } from './config';
+import { getConfig, getInitUrl, getEndpointUrl } from './config';
 import { sendFingerprint, SendOptions } from './sender';
 
 export { FingerprintComponents, FingerprintResult, FingerprintOptions, CollectOptions } from './types';
@@ -107,20 +107,35 @@ function fireAndForget(trackUrl: string | null, reqId: string): void {
   fetch(url).catch(() => {});
 }
 
-async function initRequest(): Promise<{ reqId: string | null; trackUrl: string | null }> {
-  const config = getConfig();
-  const response = await fetch(config.initUrl);
+interface InitResponse {
+  reqId: string | null;
+  trackUrl: string | null;
+  stun: string | null;
+}
+
+async function initRequest(publicKey?: string): Promise<InitResponse> {
+  const initUrl = getInitUrl(publicKey);
+  const response = await fetch(initUrl);
+  if (!response.ok) {
+    throw new Error(`Init failed: ${response.status}`);
+  }
   const data = await response.json();
   return {
     reqId: typeof data.req_id === 'string' ? data.req_id : null,
-    trackUrl: typeof data.track_url === 'string' ? data.track_url : null
+    trackUrl: typeof data.track_url === 'string' ? data.track_url : null,
+    stun: typeof data.stun === 'string' ? data.stun : null,
   };
 }
 
 export async function collect(options: CollectOptions = {}): Promise<string | null> {
-  const initData = await initRequest();
+  const initData = await initRequest(options.public_key);
   if (!initData.reqId) {
     return null;
+  }
+
+  // Set STUN server if provided by init response
+  if (initData.stun) {
+    setStunServerHost(initData.stun);
   }
 
   const result = await new Promise<FingerprintResult>((resolve, reject) => {
@@ -136,21 +151,20 @@ export async function collect(options: CollectOptions = {}): Promise<string | nu
   const config = getConfig();
   let reqId = initData.reqId;
   const trackUrl = initData.trackUrl || config.trackUrl;
+  const endpointUrl = getEndpointUrl();
 
-  if (config.endpointUrl) {
-    try {
-      (result as FingerprintResult & { req_id?: string }).req_id = reqId;
-      const response = await sendFingerprint(result, { url: config.endpointUrl });
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const data = await response.json();
-        if (data && typeof data.req_id === 'string') {
-          reqId = data.req_id;
-        }
+  try {
+    (result as FingerprintResult & { req_id?: string }).req_id = reqId;
+    const response = await sendFingerprint(result, { url: endpointUrl });
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await response.json();
+      if (data && typeof data.req_id === 'string') {
+        reqId = data.req_id;
       }
-    } catch {
-      // Silently fail if endpoint is unavailable
     }
+  } catch {
+    // Silently fail if endpoint is unavailable
   }
 
   fireAndForget(trackUrl, reqId);
@@ -162,28 +176,40 @@ export { sendFingerprint };
 export { setStunServerHost, getStunServerHost };
 
 type FingerprintAPI = {
-  getFingerprint: typeof getFingerprint;
-  collect: typeof collect;
+  getFingerprint: (options?: FingerprintOptions, reqId?: string) => Promise<FingerprintResult>;
+  collect: (options?: CollectOptions) => Promise<string | null>;
   sendFingerprint: typeof sendFingerprint;
   setStunServerHost: typeof setStunServerHost;
 };
 
 type FingerprintFactory = {
-  (): FingerprintAPI;
+  (options?: CollectOptions): FingerprintAPI;
   getFingerprint: typeof getFingerprint;
   collect: typeof collect;
   sendFingerprint: typeof sendFingerprint;
   setStunServerHost: typeof setStunServerHost;
 };
 
-const api: FingerprintAPI = {
-  getFingerprint,
-  collect,
-  sendFingerprint,
-  setStunServerHost,
-};
+function createAPI(defaultOptions: CollectOptions = {}): FingerprintAPI {
+  return {
+    getFingerprint: (options?: FingerprintOptions, reqId?: string) =>
+      getFingerprint({ ...defaultOptions, ...options }, reqId),
+    collect: (options?: CollectOptions) =>
+      collect({ ...defaultOptions, ...options }),
+    sendFingerprint,
+    setStunServerHost,
+  };
+}
 
-const Fingerprint: FingerprintFactory = Object.assign(() => api, api);
+const Fingerprint: FingerprintFactory = Object.assign(
+  (options?: CollectOptions) => createAPI(options),
+  {
+    getFingerprint,
+    collect,
+    sendFingerprint,
+    setStunServerHost,
+  }
+);
 
 // Auto-initialize when loaded via script tag
 if (typeof window !== 'undefined') {

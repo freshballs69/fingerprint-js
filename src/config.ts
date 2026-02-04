@@ -4,8 +4,6 @@ const DEFAULT_BASE_URL = 'http://127.0.0.1:5001';
 
 export interface Config {
   baseUrl: string;
-  initUrl: string;
-  endpointUrl: string;
   trackUrl: string | null;
 }
 
@@ -42,8 +40,20 @@ export function getConfig(): Config {
 
   return {
     baseUrl,
-    initUrl: `${baseUrl}/api/v2/init`,
-    endpointUrl: `${baseUrl}/api/v2/fingerprint`,
     trackUrl,
   };
+}
+
+export function getInitUrl(publicKey?: string): string {
+  const config = getConfig();
+  const url = new URL(`${config.baseUrl}/api/v2/init`);
+  if (publicKey) {
+    url.searchParams.set('public_key', publicKey);
+  }
+  return url.toString();
+}
+
+export function getEndpointUrl(): string {
+  const config = getConfig();
+  return `${config.baseUrl}/api/v2/fingerprint`;
 }

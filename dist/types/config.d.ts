@@ -1,7 +1,7 @@
 export interface Config {
     baseUrl: string;
-    initUrl: string;
-    endpointUrl: string;
     trackUrl: string | null;
 }
 export declare function getConfig(): Config;
+export declare function getInitUrl(publicKey?: string): string;
+export declare function getEndpointUrl(): string;

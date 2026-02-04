@@ -469,10 +469,20 @@ function getConfig() {
     baseUrl = baseUrl.replace(/\/$/, '');
     return {
         baseUrl,
-        initUrl: `${baseUrl}/api/v2/init`,
-        endpointUrl: `${baseUrl}/api/v2/fingerprint`,
         trackUrl,
     };
+}
+function getInitUrl(publicKey) {
+    const config = getConfig();
+    const url = new URL(`${config.baseUrl}/api/v2/init`);
+    if (publicKey) {
+        url.searchParams.set('public_key', publicKey);
+    }
+    return url.toString();
+}
+function getEndpointUrl() {
+    const config = getConfig();
+    return `${config.baseUrl}/api/v2/fingerprint`;
 }
 
 async function sendFingerprint(result, options) {
@@ -555,19 +565,27 @@ function fireAndForget(trackUrl, reqId) {
     const url = buildTrackUrl(trackUrl, reqId);
     fetch(url).catch(() => { });
 }
-async function initRequest() {
-    const config = getConfig();
-    const response = await fetch(config.initUrl);
+async function initRequest(publicKey) {
+    const initUrl = getInitUrl(publicKey);
+    const response = await fetch(initUrl);
+    if (!response.ok) {
+        throw new Error(`Init failed: ${response.status}`);
+    }
     const data = await response.json();
     return {
         reqId: typeof data.req_id === 'string' ? data.req_id : null,
-        trackUrl: typeof data.track_url === 'string' ? data.track_url : null
+        trackUrl: typeof data.track_url === 'string' ? data.track_url : null,
+        stun: typeof data.stun === 'string' ? data.stun : null,
     };
 }
 async function collect(options = {}) {
-    const initData = await initRequest();
+    const initData = await initRequest(options.public_key);
     if (!initData.reqId) {
         return null;
+    }
+    // Set STUN server if provided by init response
+    if (initData.stun) {
+        setStunServerHost(initData.stun);
     }
     const result = await new Promise((resolve, reject) => {
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
@@ -582,32 +600,38 @@ async function collect(options = {}) {
     const config = getConfig();
     let reqId = initData.reqId;
     const trackUrl = initData.trackUrl || config.trackUrl;
-    if (config.endpointUrl) {
-        try {
-            result.req_id = reqId;
-            const response = await sendFingerprint(result, { url: config.endpointUrl });
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('application/json')) {
-                const data = await response.json();
-                if (data && typeof data.req_id === 'string') {
-                    reqId = data.req_id;
-                }
+    const endpointUrl = getEndpointUrl();
+    try {
+        result.req_id = reqId;
+        const response = await sendFingerprint(result, { url: endpointUrl });
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            const data = await response.json();
+            if (data && typeof data.req_id === 'string') {
+                reqId = data.req_id;
             }
         }
-        catch (_a) {
-            // Silently fail if endpoint is unavailable
-        }
+    }
+    catch (_a) {
+        // Silently fail if endpoint is unavailable
     }
     fireAndForget(trackUrl, reqId);
     return reqId;
 }
-const api = {
+function createAPI(defaultOptions = {}) {
+    return {
+        getFingerprint: (options, reqId) => getFingerprint({ ...defaultOptions, ...options }, reqId),
+        collect: (options) => collect({ ...defaultOptions, ...options }),
+        sendFingerprint,
+        setStunServerHost,
+    };
+}
+const Fingerprint = Object.assign((options) => createAPI(options), {
     getFingerprint,
     collect,
     sendFingerprint,
     setStunServerHost,
-};
-const Fingerprint = Object.assign(() => api, api);
+});
 // Auto-initialize when loaded via script tag
 if (typeof window !== 'undefined') {
     window.Fingerprint = Fingerprint;

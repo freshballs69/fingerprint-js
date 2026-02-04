@@ -42,4 +42,5 @@ export interface FingerprintOptions {
     timeout?: number;
 }
 export interface CollectOptions extends FingerprintOptions {
+    public_key?: string;
 }

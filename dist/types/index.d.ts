@@ -8,13 +8,13 @@ export declare function collect(options?: CollectOptions): Promise<string | null
 export { sendFingerprint };
 export { setStunServerHost, getStunServerHost };
 type FingerprintAPI = {
-    getFingerprint: typeof getFingerprint;
-    collect: typeof collect;
+    getFingerprint: (options?: FingerprintOptions, reqId?: string) => Promise<FingerprintResult>;
+    collect: (options?: CollectOptions) => Promise<string | null>;
     sendFingerprint: typeof sendFingerprint;
     setStunServerHost: typeof setStunServerHost;
 };
 type FingerprintFactory = {
-    (): FingerprintAPI;
+    (options?: CollectOptions): FingerprintAPI;
     getFingerprint: typeof getFingerprint;
     collect: typeof collect;
     sendFingerprint: typeof sendFingerprint;
