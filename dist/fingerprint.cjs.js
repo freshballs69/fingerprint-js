@@ -360,30 +360,15 @@ function getPlugins() {
     return plugins.sort();
 }
 
-// Global STUN server host configuration stored in window
-const DEFAULT_STUN_HOST = 'stun.deadbeef.pp.ua';
 function getStunServerHost() {
-    if (typeof window !== 'undefined' && window.__stunServerHost) {
-        return window.__stunServerHost;
+    if (typeof window !== 'undefined' && window.__stunServerUrl) {
+        return window.__stunServerUrl;
     }
-    return DEFAULT_STUN_HOST;
+    return '';
 }
-function setStunServerHost(host) {
+function setStunServerHost(url) {
     if (typeof window !== 'undefined') {
-        window.__stunServerHost = host;
-    }
-}
-async function initStunServer(reqId) {
-    try {
-        const host = getStunServerHost();
-        const response = await fetch(`https://${host}/init?req_id=${encodeURIComponent(reqId)}`);
-        if (!response.ok) {
-            return null;
-        }
-        return await response.json();
-    }
-    catch (_a) {
-        return null;
+        window.__stunServerUrl = url;
     }
 }
 async function getWebRTCInfo(reqId) {
@@ -395,12 +380,14 @@ async function getWebRTCInfo(reqId) {
         return result;
     }
     result.available = true;
-    // Get dynamic STUN port from init endpoint
-    const generatedReqId = reqId || crypto.randomUUID();
-    const stunInit = await initStunServer(generatedReqId);
-    const iceServers = stunInit
-        ? [{ urls: `stun:${getStunServerHost()}:${stunInit.port}` }]
-        : [];
+    // Use STUN URL directly from init response (format: "stun:host:port")
+    const stunUrl = getStunServerHost();
+    const iceServers = stunUrl ? [{ urls: stunUrl }] : [];
+    // Debug logging
+    if (typeof console !== 'undefined') {
+        console.log('[Fingerprint] WebRTC STUN URL:', stunUrl);
+        console.log('[Fingerprint] ICE servers:', JSON.stringify(iceServers));
+    }
     try {
         const pc = new RTCPeerConnection({
             iceServers,
@@ -414,11 +401,17 @@ async function getWebRTCInfo(reqId) {
             }, 1000);
             pc.onicecandidate = (event) => {
                 if (!event.candidate) {
+                    if (typeof console !== 'undefined') {
+                        console.log('[Fingerprint] ICE gathering complete, IPs found:', Array.from(ips));
+                    }
                     clearTimeout(timeout);
                     pc.close();
                     result.localIPs = Array.from(ips);
                     resolve(result);
                     return;
+                }
+                if (typeof console !== 'undefined') {
+                    console.log('[Fingerprint] ICE candidate:', event.candidate.candidate);
                 }
                 const candidate = event.candidate.candidate;
                 const ipMatch = candidate.match(/(\d{1,3}\.){3}\d{1,3}/);
@@ -511,7 +504,7 @@ async function collectComponents(options = {}, reqId) {
         ? await getAudioFingerprint()
         : 0;
     const webrtcInfo = !exclude.has('webrtcAvailable') || !exclude.has('webrtcLocalIPs')
-        ? await getWebRTCInfo(reqId)
+        ? await getWebRTCInfo()
         : { available: false, localIPs: [] };
     return {
         userAgent: !exclude.has('userAgent') ? getUserAgent() : '',
@@ -546,7 +539,7 @@ async function collectComponents(options = {}, reqId) {
     };
 }
 async function getFingerprint(options = {}, reqId) {
-    const components = await collectComponents(options, reqId);
+    const components = await collectComponents(options);
     const componentsString = JSON.stringify(components);
     const hash = await sha256(componentsString);
     return {
@@ -624,7 +617,7 @@ async function collect(options = {}) {
 }
 function createAPI(defaultOptions = {}) {
     return {
-        getFingerprint: (options, reqId) => getFingerprint({ ...defaultOptions, ...options }, reqId),
+        getFingerprint: (options, reqId) => getFingerprint({ ...defaultOptions, ...options }),
         collect: (options) => collect({ ...defaultOptions, ...options }),
         sendFingerprint,
         setStunServerHost,

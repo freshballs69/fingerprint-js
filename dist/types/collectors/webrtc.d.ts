@@ -4,9 +4,9 @@ export interface WebRTCInfo {
 }
 declare global {
     interface Window {
-        __stunServerHost?: string;
+        __stunServerUrl?: string;
     }
 }
 export declare function getStunServerHost(): string;
-export declare function setStunServerHost(host: string): void;
+export declare function setStunServerHost(url: string): void;
 export declare function getWebRTCInfo(reqId?: string): Promise<WebRTCInfo>;

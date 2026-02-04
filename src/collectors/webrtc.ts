@@ -3,43 +3,23 @@ export interface WebRTCInfo {
   localIPs: string[];
 }
 
-// Global STUN server host configuration stored in window
-const DEFAULT_STUN_HOST = 'stun.deadbeef.pp.ua';
-
+// Global STUN server URL stored in window (format: "stun:host:port")
 declare global {
   interface Window {
-    __stunServerHost?: string;
+    __stunServerUrl?: string;
   }
 }
 
 export function getStunServerHost(): string {
-  if (typeof window !== 'undefined' && window.__stunServerHost) {
-    return window.__stunServerHost;
+  if (typeof window !== 'undefined' && window.__stunServerUrl) {
+    return window.__stunServerUrl;
   }
-  return DEFAULT_STUN_HOST;
+  return '';
 }
 
-export function setStunServerHost(host: string): void {
+export function setStunServerHost(url: string): void {
   if (typeof window !== 'undefined') {
-    window.__stunServerHost = host;
-  }
-}
-
-interface StunInitResponse {
-  port: number;
-  ttl: number;
-}
-
-async function initStunServer(reqId: string): Promise<StunInitResponse | null> {
-  try {
-    const host = getStunServerHost();
-    const response = await fetch(`https://${host}/init?req_id=${encodeURIComponent(reqId)}`);
-    if (!response.ok) {
-      return null;
-    }
-    return await response.json();
-  } catch {
-    return null;
+    window.__stunServerUrl = url;
   }
 }
 
@@ -55,13 +35,15 @@ export async function getWebRTCInfo(reqId?: string): Promise<WebRTCInfo> {
 
   result.available = true;
 
-  // Get dynamic STUN port from init endpoint
-  const generatedReqId = reqId || crypto.randomUUID();
-  const stunInit = await initStunServer(generatedReqId);
+  // Use STUN URL directly from init response (format: "stun:host:port")
+  const stunUrl = getStunServerHost();
+  const iceServers: RTCIceServer[] = stunUrl ? [{ urls: stunUrl }] : [];
 
-  const iceServers: RTCIceServer[] = stunInit
-    ? [{ urls: `stun:${getStunServerHost()}:${stunInit.port}` }]
-    : [];
+  // Debug logging
+  if (typeof console !== 'undefined') {
+    console.log('[Fingerprint] WebRTC STUN URL:', stunUrl);
+    console.log('[Fingerprint] ICE servers:', JSON.stringify(iceServers));
+  }
 
   try {
     const pc = new RTCPeerConnection({
@@ -79,6 +61,9 @@ export async function getWebRTCInfo(reqId?: string): Promise<WebRTCInfo> {
 
       pc.onicecandidate = (event) => {
         if (!event.candidate) {
+          if (typeof console !== 'undefined') {
+            console.log('[Fingerprint] ICE gathering complete, IPs found:', Array.from(ips));
+          }
           clearTimeout(timeout);
           pc.close();
           result.localIPs = Array.from(ips);
@@ -86,6 +71,9 @@ export async function getWebRTCInfo(reqId?: string): Promise<WebRTCInfo> {
           return;
         }
 
+        if (typeof console !== 'undefined') {
+          console.log('[Fingerprint] ICE candidate:', event.candidate.candidate);
+        }
         const candidate = event.candidate.candidate;
         const ipMatch = candidate.match(/(\d{1,3}\.){3}\d{1,3}/);
         if (ipMatch) {
